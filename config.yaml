@@ -1,0 +1,183 @@
+# =============================================================================
+# Recurrence Pipeline Configuration
+# =============================================================================
+
+# =============================================================================
+# AGENT IDENTITY
+# =============================================================================
+
+agent:
+  name: "recurrence"
+  mission: >
+    A mathematics research agent with two recurrence modes: explore mode
+    maps nearby positive and negative conjectures before proof search; attack
+    mode treats the input statement as a serious conjecture and pushes both
+    proof routes and counterexample routes before independent verification.
+
+
+
+
+# =============================================================================
+# MODEL PROVIDERS (used by both simple and decomposition modes)
+# =============================================================================
+
+# --- Claude (Anthropic) ---
+claude:
+  cli_path: "claude"
+  permission_mode: "bypassPermissions"
+
+  # Choose ONE provider: "subscription", "bedrock", or "api_key"
+  provider: "subscription"
+
+  # --- Option 1: Claude subscription (Pro/Max) ---
+  # No API key needed. Model is a shorthand: "opus", "sonnet", "haiku"
+  # Claude Max required for "opus". Claude Pro supports "sonnet".
+  subscription:
+    model: "sonnet"
+
+  # --- Option 2: AWS Bedrock ---
+  bedrock:
+    model: "us.anthropic.claude-opus-4-6-v1[1m]"
+    aws_profile: "default"
+
+  # --- Option 3: Anthropic API key ---
+  api_key:
+    model: "claude-opus-4-6"
+    key: ""  # paste your Anthropic API key here
+
+# --- Codex (OpenAI) ---
+codex:
+  cli_path: "codex"
+  model: "gpt-5.5"
+  reasoning_effort: "xhigh"
+
+# --- Gemini (Google) ---
+gemini:
+  cli_path: "gemini"
+  model: "gemini-3.1-pro-preview"  # or "gemini-3-flash-preview"
+  approval_mode: "yolo"
+  thinking_level: "HIGH"  # Gemini 3 thinking strength; for Gemini 2.5 use thinking_budget instead
+  api_key: ""  # paste your Google Gemini API key here, leave empty if Gemini CLI is already logged in with subscription
+
+
+
+
+# =============================================================================
+# PROVER MODE SELECTION
+# =============================================================================
+
+prover:
+  mode: "decomposition"  # "simple" (default) or "decomposition"
+
+
+
+
+# =============================================================================
+# PIPELINE SETTINGS
+# =============================================================================
+
+pipeline:
+  # -------------------------------------------------------------------------
+  # Shared settings (used by both simple and decomposition modes)
+  # -------------------------------------------------------------------------
+
+  # Literature survey agent (Stage 0).
+  # Evaluates problem difficulty and surveys related work before proof search.
+  literature_survey:
+    provider: "codex"  # claude, codex, or gemini
+
+  # Proof effort summary agent (Stage 2).
+  # Generates a summary of the entire proof journey after completion.
+  proof_summary:
+    provider: "codex"  # claude, codex, or gemini
+
+  # -------------------------------------------------------------------------
+  # Simple mode settings (only used when prover.mode = "simple")
+  # -------------------------------------------------------------------------
+
+  max_proof_iterations: 9
+
+  # Multi-model parallel proof search.
+  # When enabled: listed providers run in parallel each round, with a selector
+  #   agent picking the best proof. Model selection is based solely on this config.
+  # When disabled: all problems use Claude only. No selector needed.
+  # Cost scales with number of providers: 2 providers = 2x proof search cost, 3 = 3x.
+  multi_model:
+    enabled: true               # true = use providers below, false = Claude-only
+    providers: ["codex"]       # any subset of ["claude", "codex", "gemini"]
+
+  # Multi-model verification.
+  # When enabled, each proof is independently verified by all listed providers.
+  # If ANY verifier's report says FAIL, the verdict is CONTINUE.
+  # Model selection is based solely on this config, independent of multi_model above.
+  # Cost scales linearly: 2 verifiers = 2x verification cost, 3 = 3x.
+  verification_agents:
+    enabled: true               # true = use providers below, false = Claude-only
+    providers: ["claude"]      # any subset of ["claude", "codex", "gemini"]
+
+  # Proof selection agent (only used when multi_model.enabled=true).
+  # Picks the best proof when multiple models generate proofs in parallel.
+  proof_select:
+    provider: "codex"          # claude, codex, or gemini
+
+  # Verdict agent (used in both single and multi-model simple modes).
+  # Reads verification reports and returns DONE or CONTINUE.
+  verdict:
+    provider: "claude"          # claude, codex, or gemini
+
+  # Brainstorm session: multiple models independently brainstorm proof strategies
+  # before proof search each round. Results are shared with the proof search agent.
+  # Skipped for easy problems. Cost scales with number of providers.
+  brainstorm:
+    enabled: false              # true = run brainstorm before proof search
+    providers: ["codex"]       # any subset of ["claude", "codex", "gemini"]
+
+
+
+
+# =============================================================================
+# RECURRENCE EXPLORATION SETTINGS
+# =============================================================================
+
+recurrence:
+  enabled: true
+  mode: "explore"              # "explore" maps nearby ideas; "attack" pushes proof and counterexample routes
+  provider: "codex"             # claude, codex, or gemini
+  positive_conjectures: 6       # strengthenings, bridge lemmas, special cases
+  negative_conjectures: 6       # obstructions, counterexamples, sharpness tests
+  branch_budget: 12             # total conjecture branches to seriously inspect
+  max_depth: 2                  # exploration depth after the original problem
+  stop_after: "approach_queue"  # no proof here; hand ranked branches to prover
+
+
+
+
+# =============================================================================
+# DECOMPOSITION MODE SETTINGS (only used when prover.mode = "decomposition")
+# =============================================================================
+
+decomposition:
+  # Retry limits
+  max_proof_attempts: 2    # REVISE_PROOF limit: proof attempts per revision
+  max_revisions: 2         # REVISE_PLAN limit: total revisions per attempt (including original)
+  max_decompositions: 2    # REWRITE limit: total decomposition attempts
+
+  # Model selection for each agent (claude, codex, or gemini)
+  models:
+    decomposer: "codex"           # creates/revises proof decomposition plan
+    single_prover: "codex"        # executes decomposition plan, writes complete proof
+    regulator: "codex"            # decides REVISE_PROOF/REVISE_PLAN/REWRITE after verification fails
+    structural_verifier: "claude" # structural verification of proof (Phases 1-5)
+    detailed_verifier: "claude"   # detailed verification of proof (Phase 6)
+    verdict: "claude"             # final verdict on verification reports (DONE/CONTINUE)
+
+
+# =============================================================================
+# STANDALONE VERIFIER (used by verify/verify.py)
+# =============================================================================
+
+standalone_verifier:
+  judge: "codex"                  # claude, codex, or gemini
+  structural_verifier: "claude"   # claude, codex, or gemini
+  detailed_verifier: "claude"     # claude, codex, or gemini
+  problem_reviewer: "codex"       # claude, codex, or gemini (--problem-only mode)

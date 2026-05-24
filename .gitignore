@@ -1,0 +1,47 @@
+.DS_Store
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.venv/
+.codex-pdf-venv/
+
+# Local secrets and generated active config
+.env
+.config_run_active.yaml
+ui/.run_config.yaml
+
+# Recurrence run outputs
+runs/
+proof_output*/
+*_log/
+pipeline_stdout.log
+TOKEN_USAGE.md
+token_usage.json
+
+# User problem instances and research memory are local by default.
+problem/*
+!problem/README.md
+human_help/*
+!human_help/README.md
+memory/*
+!memory/README.md
+
+# LaTeX/build artifacts
+*.aux
+*.bbl
+*.bcf
+*.blg
+*.fdb_latexmk
+*.fls
+*.log
+*.out
+*.run.xml
+*.synctex.gz
+*.toc
+
+# Large research source documents should be added deliberately.
+*.pdf
