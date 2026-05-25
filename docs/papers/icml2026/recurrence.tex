@@ -1,0 +1,239 @@
+%%%%%%%% ICML 2026 AI4Math WORKSHOP SUBMISSION %%%%%%%%%%%%%%%%%
+
+\documentclass{article}
+
+\usepackage{microtype}
+\usepackage{graphicx}
+\usepackage{subcaption}
+\usepackage{booktabs}
+\usepackage{hyperref}
+\newcommand{\theHalgorithm}{\arabic{algorithm}}
+\def\UrlBreaks{\do\/\do-\do\_\do\.\do\?\do\&}
+\Urlmuskip=0mu plus 1mu
+\usepackage{icml2026}
+
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{mathtools}
+\usepackage{amsthm}
+\usepackage{algorithm}
+\usepackage{algorithmic}
+\usepackage[capitalize,noabbrev]{cleveref}
+
+\theoremstyle{definition}
+\newtheorem{definition}{Definition}
+\theoremstyle{remark}
+\newtheorem{remark}{Remark}
+
+\icmltitlerunning{Recurrence: Research-State Memory}
+
+\begin{document}
+
+\twocolumn[
+  \icmltitle{Recurrence: Research-State Memory for AI-Assisted Mathematics}
+
+  \begin{icmlauthorlist}
+    \icmlauthor{Anonymous Authors}{anon}
+  \end{icmlauthorlist}
+
+  \icmlaffiliation{anon}{Anonymous Institution}
+  \icmlcorrespondingauthor{Anonymous Authors}{anonymous@example.com}
+  \icmlkeywords{AI for Mathematics, Mathematical Reasoning, Agents, Conjecture Exploration}
+
+  \vskip 0.3in
+]
+\makeatletter\gdef\@icmltitlerunning{Recurrence}\makeatother
+
+\printAffiliationsAndNotice{}
+
+\begin{abstract}
+Modern AI-for-math systems are becoming useful at producing isolated proofs, but mathematicians usually work on clusters of related questions whose value is revealed through reductions, failed approaches, examples, and reusable lemmas. We present \emph{Recurrence}, a natural-language mathematician copilot that adds a pre-proof recurrence layer to a multi-agent proof-and-verification pipeline. Its core design choices are a problem-rephrasing stage that locks the target, two recurrence modes---\emph{explore} and \emph{attack}---and persistent artifacts that record proof routes, counterexample routes, failures, byproduct lemmas, no-output decisions, and return maps. By ``self-evolving'' we mean that the research state, prompts, and memory evolve across runs; no model weights are updated. We describe the workflow, give inspectable traces from a topology campaign, and state evaluation axes for research-state quality.
+\end{abstract}
+
+\section{Introduction}
+
+Large language models can now produce useful mathematical arguments, search for proof strategies, and interact with formal tools. Yet their failure modes remain familiar to working mathematicians: they may solve a nearby problem, import a theorem outside its hypotheses, ignore a counterexample family, repeatedly pursue a doomed branch, or forget why an earlier attempt failed. These errors are especially damaging in research-level mathematics, where progress often consists not only of proving a theorem, but of clarifying the landscape around a conjecture.
+
+Recurrence is built around a simple premise: a mathematician copilot should not only answer a problem prompt; it should maintain a research program. Before proof generation, it rephrases the problem without changing its meaning, separates hypotheses from conclusions, records quantifiers and success criteria, and then chooses between two modes. In \emph{explore} mode, the agent maps nearby positive and negative conjectures before committing proof budget. In \emph{attack} mode, it treats the input as a serious conjecture and simultaneously enumerates proof methods and disproof methods. Both modes must ``recur'' to the original target: every branch is classified as direct progress, reduction, obstruction, finite evidence, side result, or dead end. For double-blind review, code and run artifacts will be supplied through an anonymized repository or supplementary archive.
+
+The main contribution is a system design for long-horizon AI-assisted mathematics:
+\begin{itemize}
+  \item a target-normalization layer that functions as a problem-rephrasing agent;
+  \item two recurrence modes, \emph{explore} and \emph{attack}, where many existing proof agents effectively implement only the attack behavior;
+  \item multiple search schemes, including nearby conjecture generation, proof-method matrices, counterexample search, exact computations, literature checks, best-of-$N$ approach queues, and independent verification;
+  \item persistent records of failures, byproduct lemmas, no-output decisions, and mind-map style return maps; and
+  \item campaign memory that makes the agent self-evolving at the research-process level: later runs inherit frontier lemmas, dead ends, prompt lessons, and verifier-labeled claim maps from earlier runs.
+\end{itemize}
+
+We do not claim that Recurrence replaces formal verification or expert review. Rather, we claim that the missing unit in many current systems is the \emph{cluster}: a structured set of related conjectures, reductions, examples, and obstructions that survives across runs.
+
+\section{Design Commitments}
+
+Recurrence is distinguished less by any single agent role than by the artifact contract imposed across roles:
+\begin{itemize}
+  \item every branch receives a return-to-target status;
+  \item every failed route is converted into a warning, obstruction, or next problem;
+  \item every claimed lemma receives a verifier label: \textsc{Yes}, \textsc{No}, or \textsc{Uncertain};
+  \item later runs consume prior memory through campaign notes, claim maps, and branch queues;
+  \item \textsc{Uncertain} is never promoted to a final mathematical result.
+\end{itemize}
+
+\section{Related Work}
+
+Recent AI-for-math progress has moved quickly from benchmark problem solving toward research-style discovery. OpenAI reported that an internal general-purpose reasoning model produced an infinite-family counterexample to a central conjecture in the planar unit-distance problem, with the resulting proof checked by external mathematicians \citep{openai2026unitdistance}. OpenAI's earlier First Proof release also emphasized the difficulty of producing checkable research proofs in specialized domains and the need for expert scrutiny \citep{openai2026firstproof}. Aletheia, introduced by \citet{feng2026towards}, is a Gemini Deep Think-powered research agent that iteratively generates, verifies, and revises natural-language mathematics; a follow-up reported autonomous performance on FirstProof \citep{feng2026firstproof}. Google DeepMind reports rapid progress from IMO-level natural-language proof generation to PhD-level exercises and research collaborations, while arguing that future agents should combine natural-language fluency with formal verification \citep{deepmind2026geminiscience,deepmind2025imo}.
+
+Formal verification remains the strongest correctness standard. Lean 4 provides a modern theorem-proving foundation \citep{moura2021lean}, and recent systems increasingly pair informal reasoning with Lean-based checking. The Rethlas/Archon system explores informal strategies and then translates arguments into Lean 4 projects through decomposition, refinement, and proof synthesis \citep{ju2026automated}. FormalProofBench evaluates whether frontier models can produce graduate-level Lean proofs from natural-language problems and formal statements, showing both promise and steep current limitations \citep{ravi2026formalproofbench}. Geometry-focused systems such as AlphaGeometry combine symbolic deduction with neural search \citep{trinh2024alphageometry}. Smaller open-source natural-language agents, including QED \citep{an2026qed}, show that decomposer/prover/verifier separation can be useful, but Recurrence's focus is different: it treats proof search as one step inside a longer research-memory loop.
+
+Outside mathematics, Recurrence is closest in spirit to agents that retain reusable lessons from prior attempts. Reflexion stores verbal feedback after failures \citep{shinn2023reflexion}, Voyager builds an ever-growing skill library from exploration and execution errors \citep{wang2023voyager}, and automated scientific-discovery agents organize idea generation, experimentation, and paper writing into closed loops \citep{lu2024aiscientist}. Recurrence specializes this memory pattern to mathematical research: the retained objects are conjectures, reductions, obstructions, claim maps, and next-target prompts.
+
+Recurrence is complementary to formal systems. It currently targets natural-language proof work with adversarial verification, because broad conjecture exploration often precedes any stable formal statement. We view Lean autoformalization and proof checking as a natural upgrade path: once Recurrence has isolated a clean lemma, stabilized definitions, and pruned false routes, a formalization agent can attempt machine-checked verification. The present paper focuses on the earlier research-state problem: how an agent decides what statement should be formalized or attacked next.
+
+\section{System Overview}
+
+Recurrence extends a standard proof pipeline with a stage that runs before proof writing:
+\[
+\begin{gathered}
+\text{problem} \to \text{survey} \to \text{recurrence} \\
+\to \text{proof} \to \text{verification} \to \text{memory}.
+\end{gathered}
+\]
+The proof layer follows the familiar generator/checker split: a decomposer creates a proof plan, a prover writes the proof, structural and detailed verifiers attack it, and a regulator revises the proof or plan when verification fails. The recurrence layer is the main novelty.
+
+\begin{definition}[Return-to-conjecture discipline]
+A branch is admissible only if the agent records how it affects the original target. The allowed statuses are direct progress, reduction, obstruction, finite evidence, side result, and dead end.
+\end{definition}
+
+\begin{algorithm}[t]
+  \caption{Recurrence loop for one target}
+  \label{alg:recurrence}
+  \begin{algorithmic}[1]
+    \STATE Normalize the statement: objects, hypotheses, conclusion, quantifiers.
+    \STATE Read human guidance and source constraints.
+    \IF{mode is \textsc{Explore}}
+      \STATE Generate positive branches: strengthenings, bridge lemmas, special cases, analogues.
+      \STATE Generate negative branches: counterexample shapes, sharpness tests, missing-hypothesis tests.
+    \ELSE
+      \STATE Build proof-method and disproof-method matrices for the locked statement.
+      \STATE Test bottlenecks, edge cases, and counterexample candidates.
+    \ENDIF
+    \STATE Rank surviving branches by plausibility, checkability, source support, and target relevance.
+    \STATE Refuse or pause branches with unverified theorems, changed targets, or repeated fatal gaps.
+    \STATE Write a return map and next single-target problem.
+    \STATE Pass the top branch to decomposition, proving, and verification.
+    \STATE Extract memory: achievements, failures, frontiers, prompt lessons, and claim maps.
+  \end{algorithmic}
+\end{algorithm}
+
+\section{Two Modes: Explore and Attack}
+
+\paragraph{Explore mode.}
+Explore mode is deliberately pre-proof. It asks the agent to behave like a mathematician walking around a problem with a notebook: formulate nearby conjectures, test special cases, search for obstructions, rank branches, and decide which ideas should not receive proof budget. This is useful when the target is open-ended, when the right formulation is unclear, or when the most valuable output may be a reduction or obstruction map rather than a final proof.
+
+\paragraph{Attack mode.}
+Attack mode is stricter. It locks the statement, enumerates proof methods, enumerates counterexample methods, tests small and edge cases, and returns one of a few operational decisions: a proof route survives, a counterexample candidate needs verification, a counterexample is verified, the target reduces to a bottleneck, the result is inconclusive, or human input is needed. This resembles the dominant behavior of many proof agents, but Recurrence treats it as one mode rather than the whole system.
+
+The distinction matters. In research mathematics, rushing to attack can waste compute on an ill-posed target or a false strengthening. Conversely, indefinite exploration can become idea generation without progress. Recurrence separates the two behaviors and forces both to return to the conjecture.
+
+\section{Search Schemes and Artifacts}
+
+Recurrence uses several search schemes in parallel or sequence:
+\begin{itemize}
+  \item \textbf{Target normalization:} the problem is rewritten compactly without changing meaning, with hypotheses and quantifiers made explicit.
+  \item \textbf{Positive search:} bridge lemmas, special cases, strengthenings, analogues, and structural explanations.
+  \item \textbf{Negative search:} obstruction tests, counterexamples, sharpness examples, missing-hypothesis checks, and false stronger claims.
+  \item \textbf{Method matrices:} in attack mode, proof and disproof methods are listed with bottleneck claims and verifier formats.
+  \item \textbf{Verifier-guided pruning:} proof branches are stopped when they depend on unavailable citations, change the target, or leave the same gap after revision.
+  \item \textbf{Campaign memory:} extracted notes seed future prompts and prevent repeated dead ends.
+\end{itemize}
+
+The output is intentionally file-based and inspectable. A typical run writes an exploration map, conjecture ledger, approach queue, no-output decisions, approach journal, and conjecture return map. In attack mode it additionally writes an attack report, method matrix, counterexample-search log, and attack decision. After proof generation, Recurrence builds claim maps whose nodes are verifier-labeled as \textsc{Yes}, \textsc{No}, or \textsc{Uncertain}. These maps are not presented as formal proof certificates, but they are useful for deciding what to run next.
+
+\begin{table}[t]
+  \caption{How Recurrence differs from one-shot proof attack.}
+  \label{tab:comparison}
+  \vskip 0.08in
+  \centering
+  \begin{footnotesize}
+  \setlength{\tabcolsep}{3pt}
+  \begin{tabular}{p{0.27\columnwidth}p{0.31\columnwidth}p{0.31\columnwidth}}
+    \toprule
+    Component & Common agent & Recurrence \\
+    \midrule
+    Problem handling & prompt as given & normalized target \\
+    Main mode & prove/disprove & explore or attack \\
+    Search unit & one statement & conjecture cluster \\
+    Failures & transient logs & reusable memory \\
+    Byproducts & incidental & ledgered lemmas \\
+    Stopping & round limit & no-output decisions \\
+    Next target & user supplied & frontier selected \\
+    \bottomrule
+  \end{tabular}
+  \end{footnotesize}
+\end{table}
+
+\section{Campaign Evidence}
+
+By self-evolving we do not mean that Recurrence updates model weights. The evolution is in the mathematical state and in the prompts constructed from that state. After each run, the system extracts memory items such as useful insights, pitfall warnings, failed or revised attempts, false lemmas, ranking rationales, and next-problem recommendations. It also maintains cluster notes and a global claim map. A later run can therefore inherit not only a problem statement, but a history of what changed the research program.
+
+In an internal low-dimensional topology campaign, Recurrence maintained a cluster around pseudoconvex, contact-topological, and smooth embedding questions. The memory index contained 142 low-dimensional-topology memory items, including pitfalls, useful strategies, false lemmas, verification issues, and next-problem records. Seven generated claim maps contained 51 verifier-labeled \textsc{Yes} nodes and 20 \textsc{Uncertain} nodes. These numbers are system traces rather than benchmark scores; the key question is whether the traces preserve useful research state. \Cref{tab:runs} gives representative examples.
+
+\begin{table*}[t]
+  \caption{Representative Recurrence traces from one topology campaign.}
+  \label{tab:runs}
+  \vskip 0.08in
+  \centering
+  \begin{small}
+  \begin{tabular}{p{0.20\textwidth}p{0.10\textwidth}p{0.26\textwidth}p{0.34\textwidth}}
+    \toprule
+    Target & Mode & Main artifact & Lesson preserved for later runs \\
+    \midrule
+    Brieskorn pseudoconvex finite map & explore & 30-entry obstruction table; 7 \textsc{Yes} claim nodes & Full conjecture was too broad; finite source-backed obstruction map passed while four canonical survivors were kept unresolved. \\
+    Hyperbolic rational homology spheres with tight structures & explore & 3 certified construction rows; 8 verified proof nodes & Literature search found a 2025 theorem that made negative figure-eight surgeries direct; uncertain Weeks-manifold notation was paused. \\
+    Contact invariant versus tightness & explore & Four-row implication/counterexample map; 10 \textsc{Uncertain} claim nodes & Global equivalence was refused; a concrete Ghiggini counterexample was retained, while one extracted row was demoted to a lemma gap. \\
+    Punctured zero-surgery embeddings & explore & Return map with 12 branches; 14 verified proof nodes & The actual punctured hypothesis gives \(Y\#(-Y)\), not \(Y\); naive closed-embedding, sliceness, and \(\Delta_K=1\) routes were recorded as dead ends. \\
+    \bottomrule
+  \end{tabular}
+  \end{small}
+\end{table*}
+
+\paragraph{Inspectable return-map example.}
+One run studied \(Y^\circ=(S^3_0(K))\setminus\operatorname{int}(B^3)\hookrightarrow S^4\). A tempting route was to cap the boundary and apply closed-embedding obstructions to \(Y\). Recurrence instead recorded the chain
+\[
+\begin{gathered}
+Y^\circ\hookrightarrow S^4
+\Rightarrow D(Y^\circ)\cong Y\#(-Y)\\
+\Rightarrow \text{closed tools on }Y
+\text{ require a new cap lemma}.
+\end{gathered}
+\]
+The return map then classified the cap route as a reduction with a missing lemma, marked direct sliceness and double-sliceness claims as unsupported, refuted \(\Delta_K(t)=1\) as a necessary condition using ribbon examples, and selected the next target: compute Kawauchi local signatures of \(Y\#(-Y)\) in Levine--Tristram terms. This is the intended unit of progress: a failed proof route becomes a reusable guardrail and a precise next problem.
+
+\paragraph{Evaluation axes.}
+For future systematic evaluation, we will measure at least five artifact-level quantities: target preservation, obstruction recovery, repeated-error reduction under campaign memory, human-rated next-target quality, and verification discipline (especially whether uncertain claims remain labeled \textsc{Uncertain}). These metrics do not replace theorem correctness, but they make the research-state contribution testable.
+
+\paragraph{Reproducibility.}
+A single run takes a Markdown or \LaTeX\ target file and produces a directory of inspectable artifacts. The command format is:
+\begin{center}
+\footnotesize\texttt{./run\_recurrence.sh problem/name.md}\\
+\footnotesize\texttt{runs/name config.yaml}
+\end{center}
+Expected outputs include a literature survey, recurrence map, conjecture ledger, approach queue, no-output decisions, proof/decomposition files, verification reports, token usage, and a proof-effort summary. The internal runs above used Codex for survey/exploration/decomposition/proving and Claude Sonnet for structural and detailed verification; representative wall-clock times were about 43--82 minutes per run, with token counts recorded in \texttt{TOKEN\_USAGE.md}. An anonymized artifact bundle should accompany submission.
+
+\begin{remark}[Poincare philosophy]
+The harness is inspired by a Poincare-style view of discovery: intuition proposes, search varies, and mistakes check the path. Recurrence operationalizes this by preserving false starts, obstructions, byproduct lemmas, and return maps.
+\end{remark}
+
+\section{Discussion}
+
+The main limitation of Recurrence is that its current verification layer is mostly natural-language and adversarial rather than fully formal. This is appropriate for broad research exploration, but final claims still require expert review, formalization, or independent checking. A natural next step is to connect the claim map to Lean: Recurrence would first stabilize informal definitions and lemma boundaries, then dispatch selected claims to an autoformalization and formal-verification backend. A second limitation is evaluation: long-horizon research assistance is harder to benchmark than isolated theorem proving. We therefore view artifact quality---whether the agent preserves the exact target, records dead ends, produces reusable reductions, and chooses meaningful next problems---as an important evaluation axis alongside solved-problem counts.
+
+The system is also deliberately conservative about output. For mathematical research, \textsc{Uncertain} should not be rewritten as success. Recurrence's no-output decisions are meant to make abstention productive: a failed branch becomes a guardrail, a missing lemma becomes a next problem, and a byproduct becomes a ledgered result instead of disappearing into a transcript.
+
+\section{Conclusion}
+
+Recurrence is a first step toward a mathematician copilot that studies clusters of related questions over time. Its distinguishing features are not only multi-agent proof search, but the pre-proof recurrence layer: problem rephrasing, explore/attack modes, multiple search schemes, persistent failure records, byproduct lemma ledgers, return maps, and campaign memory. This design shifts the AI-for-math objective from ``answer this prompt'' toward ``help maintain and advance this research program.'' We believe that such self-evolving research-state agents will be essential for useful human-AI collaboration in mathematics.
+
+\bibliography{recurrence}
+\bibliographystyle{icml2026}
+
+\end{document}
