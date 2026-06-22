@@ -6,6 +6,20 @@ The recurrence stage creates positive and negative nearby conjectures, tests obs
 
 See [`RECURRENCE.md`](RECURRENCE.md) for the revised agent workflow and [`docs/ai_math_agent_harness.md`](docs/ai_math_agent_harness.md) for the reusable AI-for-math harness.
 
+## ICML AI4Math Workshop Draft
+
+The workshop paper source is in [`docs/papers/icml2026/`](docs/papers/icml2026/):
+
+- [`recurrence.tex`](docs/papers/icml2026/recurrence.tex)
+- [`recurrence.bib`](docs/papers/icml2026/recurrence.bib)
+- [`recurrence.pdf`](docs/papers/icml2026/recurrence.pdf)
+
+Build from that directory with `tectonic recurrence.tex`; the ICML style files needed for the draft are vendored next to the source.
+
+The draft frames Recurrence as a self-evolving mathematician copilot for clusters of related conjectures. It emphasizes the problem-rephrasing layer, the two recurrence modes (`explore` and `attack`), multiple search schemes, failure and byproduct-lemma memory, return maps, and the planned path from natural-language verification toward Lean autoformalization.
+
+Project page / code target: <https://github.com/Recurrence-Poincare/Recurrence>.
+
 ## Original Upstream
 
 **Authors:** Chenyang An (<cya.portfolio@gmail.com>) Qihao Ye (<q8ye@ucsd.edu>) Minghao Pan (<mpan2@caltech.edu>) Jiayun Zhang (<landiveo@gmail.com>)
